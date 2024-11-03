@@ -1,14 +1,21 @@
+import inputs
 
+# Initiallize controller object
+class Controller:
+    def __init__(self):
+        self.inputkeys = dict.fromkeys(['ABS_X','ABS_Y','ABS_RX','ABS_RY','BTN_SELECT'])
 
+    # What is being pressed?
+    def readinputs(self):
+        events = inputs.get_gamepad()
+        for event in events:
+            if str(event.ev_type) == "Absolute" or str(event.ev_type) == "Key":
+                if str(event.code) in self.inputkeys:
+                    self.inputkeys[str(event.code)] = event.state
+                else:
+                   print(f"No inputkey found for event {event.code}")
 
-def main():
-	while True:
-		events = inputs.get_gamepad()
-		for event in events:
-			if str(event.ev_type) == "Absolute" or str(event.ev_type) == "Key":
-				print("event code " + str(event.code))
-				print("event state " + str(event.state))
-				print("----")
-if __name__ == "__main__":
-	main()
+    # Return the presses
+        return self.inputkeys
 
+        
