@@ -34,8 +34,8 @@ logging.getLogger().addHandler(logging.StreamHandler())
 
 # Jokes
 
+print("\nWelcome.")
 print("\nWhat did one snowman say to the other snowman? Smells like carrots.")
-print("Welcome.")
 
 # CSV Writer - Save for remote usage
 '''
@@ -45,15 +45,16 @@ writer.writerow(HEADERS)
 print(f"Output data file is open @ {OUTPUT_DATA_PATH}.")
 '''
 # Create Devices
-print("Creating Devices")
+print("Creating Devices...")
 '''
 i2c = board.I2C()
 pwmdriver = PCA9685(i2c)
+pwmdriver.frequency = 60
 '''
 gamepad = Controller()
-print("Devices are good to go")
+print("Devices are good to go.")
 
-print("Entering activity loop")
+print("Entering activity loop...")
 running = True
 
 # Main activity loop
@@ -64,9 +65,10 @@ while running:
     # Ends activity loop if select button is pressed
     if inputkeys["BTN_SELECT"] == 1:
         running = False
-
         print("Exiting activity loop.")
 
+    abs_y = inputkeys["ABS_Y"]
+    # Scaling and pwm outputs for driving motors goes here 
 
 
-print("Activity Loop Exited. Goodbye")
+print("Activity Loop Exited. Goodbye!")
