@@ -3,7 +3,11 @@ import inputs
 # Initiallize controller object
 class Controller:
     def __init__(self):
-        self.inputkeys = dict.fromkeys(['ABS_X','ABS_Y','ABS_RX','ABS_RY','BTN_SELECT'])
+        self.inputkeys = {'ABS_X': 0,
+                          'ABS_Y': 0,
+                          'ABS_RX': 0,
+                          'ABS_RY': 0,
+                          'BTN_SELECT': 0}
 
     # What is being pressed?
     def readinputs(self):

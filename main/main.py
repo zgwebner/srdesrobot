@@ -8,6 +8,11 @@ from adafruit_pca9685 import PCA9685
 import adafruit_servokit
 import time
 from controller import Controller
+import threading
+import queue
+isrunning = {'running': True}
+
+
 '''
 This is the main program file for the robot's functionality. This script is intended to run
 on robot startup and runs until disconnected.
@@ -54,21 +59,81 @@ pwmdriver.frequency = 60
 gamepad = Controller()
 print("Devices are good to go.")
 
+# Arduino's map function
+def map(x, inmin, inmax, outmin, outmax):
+    return (x - inmin) * (outmax - outmin) / (inmax - inmin) + outmin
+
+print("Beginning threading...")
+# Set up threading for simultaneous controller reading and robot function
+def getinputs(q):
+    print("Successfully began input thread.")
+    while True:
+        if isrunning['running'] == False:
+            break
+
+        # Process inputs from gamepad
+        inputkeys = gamepad.readinputs()
+        q.put(inputkeys)
+
+def processinputs(q):
+    print("Successfully began process thread.")
+    while True:
+        
+        if isrunning['running'] == False:
+            break
+
+        inputkeys = q.get()
+        print("Seeing inputs: " + str(inputkeys))
+        # Ends threading loop if select button is pressed
+        if inputkeys["BTN_SELECT"] == 1:
+            print("Exiting activity loop.")
+            isrunning['running'] = False
+       
+        abs_y = inputkeys["ABS_Y"]
+        
+        #Account for dead zones on joystick movement
+        if abs_y > 0 and abs_y < 2500:
+            abs_y = 2500
+        elif abs_y > -2500 and abs_y < 0:
+            abs_y = -2500
+        elif abs_y < -25000:
+            abs_y = -25000
+        elif abs_y > 25000:
+            abs_y = 25000
+
+        # For some reason, negative is up on the gamepad. This flips that. 
+        abs_y *= -1
+
+        # Scales joystick input to pwm output (12-bit)
+        if abs_y > 0:
+            drivepwmout = map(abs_y, 2500, 25000, 2048, 4095)
+        else: 
+            drivepwmout = map(abs_y, -25000, -2500, 0, 2047)
+        dpoleft = drivepwmout
+        dporight = drivepwmout
+        '''
+        pwmdriver.channels[0].duty_cycle = dpoleft
+        pwmdriver.channels[1].duty_cycle = dporight
+        '''
+# Activate threading
+q = queue.Queue()
+
+inpthread = threading.Thread(target=getinputs, args=(q,))
+processthread = threading.Thread(target=processinputs, args=(q,))
+
+inpthread.start()
+processthread.start()
+print("Threading is good to go.")
+
+# Main Activity Loop
 print("Entering activity loop...")
-running = True
 
-# Main activity loop
-while running:
-    inputkeys = gamepad.readinputs() 
-    
+while isrunning['running'] == True:
 
-    # Ends activity loop if select button is pressed
-    if inputkeys["BTN_SELECT"] == 1:
-        running = False
-        print("Exiting activity loop.")
+    print('here2')
+    time.sleep(1)
+    print('here3')
 
-    abs_y = inputkeys["ABS_Y"]
-    # Scaling and pwm outputs for driving motors goes here 
+ 
 
-
-print("Activity Loop Exited. Goodbye!")
+print("All exited gracefully. Goodbye!")
