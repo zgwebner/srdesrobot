@@ -8,18 +8,18 @@ class Controller:
                           'ABS_RX': 0,
                           'ABS_RY': 0,
                           'BTN_SELECT': 0}
+        self.thiscode = None
+        self.thisstate = None
 
     # What is being pressed?
     def readinputs(self):
         events = inputs.get_gamepad()
         for event in events:
             if str(event.ev_type) == "Absolute" or str(event.ev_type) == "Key":
-                if str(event.code) in self.inputkeys:
-                    self.inputkeys[str(event.code)] = event.state
-                else:
-                   print(f"No inputkey found for event {event.code}")
+                self.thiscode = event.code
+                self.thisstate = event.state 
 
     # Return the presses
-        return self.inputkeys
+        return self.thiscode, self.thisstate
 
         
