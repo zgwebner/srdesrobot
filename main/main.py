@@ -27,16 +27,21 @@ logging.getLogger().addHandler(logging.StreamHandler())
 '''
 
 # Jokes
+print("Successfully imported modules and created log. ")
 print("\nWelcome.")
 print("\nWhat did one snowman say to the other snowman? Smells like carrots.\n")
 
 # Create Devices
 print("Creating Devices...")
-'''
+
 i2c = board.I2C()
 pwmdriver = PCA9685(i2c)
 pwmdriver.frequency = 60
-'''
+
+pwmdriver.channels[0].duty_cycle = 32768 
+pwmdriver.channels[1].duty_cycle = 32768
+            
+
 gamepad = Controller()
 print("Devices are good to go.")
 
@@ -98,17 +103,18 @@ def processinputs(q):
 
             # Scales joystick input to pwm output (12-bit)
             if abs_y > 0:
-                drivepwmout = map(abs_y, 2500, 25000, 2048, 4095)
+                drivepwmout = map(abs_y, 2500, 25000, 32768, 65535)
             else: 
-                drivepwmout = map(abs_y, -25000, -2500, 0, 2047)
+                drivepwmout = map(abs_y, -25000, -2500, 0, 32768)
 
-            print("Output PWM Value:" + str(drivepwmout))
             dpoleft = drivepwmout
             dporight = drivepwmout
-            '''
-            pwmdriver.channels[0].duty_cycle = dpoleft
-            pwmdriver.channels[1].duty_cycle = dporight
-            '''
+            print(f"Outputting to channel 0: {dpoleft}") 
+            print(f"Outputting to channel 1: {dporight}")
+            
+            pwmdriver.channels[0].duty_cycle = int(dpoleft)
+            pwmdriver.channels[1].duty_cycle = int(dporight)
+            
 # Activate threading
 q = queue.Queue()
 
