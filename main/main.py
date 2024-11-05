@@ -26,21 +26,23 @@ logging.basicConfig(filename=OUTPUT_LOG_PATH, level=logging.DEBUG, filemode="w")
 logging.getLogger().addHandler(logging.StreamHandler())
 '''
 
-# Jokes
+print("Welcome.")
 print("Successfully imported modules and created log. ")
-print("\nWelcome.")
+
+# Jokes
 print("\nWhat did one snowman say to the other snowman? Smells like carrots.\n")
 
 # Create Devices
 print("Creating Devices...")
 
+'''
 i2c = board.I2C()
 pwmdriver = PCA9685(i2c)
 pwmdriver.frequency = 60
 
 pwmdriver.channels[0].duty_cycle = 32768 
 pwmdriver.channels[1].duty_cycle = 32768
-            
+'''         
 
 gamepad = Controller()
 print("Devices are good to go.")
@@ -71,9 +73,12 @@ def getinputs(q):
 # Process thread is to constantly act on read controller input
 def processinputs(q):
     print("Successfully began process thread.")
+    drivepwm = 32767
+    rmod = 1
+    lmod = 1
     while True:
         
-        # Closes process thread
+        # Closes process thread if stop is detected
         if isrunning['running'] == False:
             print("Closing process thread.")
             break
@@ -84,7 +89,7 @@ def processinputs(q):
             print("Exiting activity loop.")
             isrunning['running'] = False
 
-        # Process movement joystick events
+        # Process fwd/back movement
         if code == "ABS_Y":
             abs_y = state
             
@@ -93,28 +98,54 @@ def processinputs(q):
                 abs_y = 2500
             elif abs_y > -2500 and abs_y < 0:
                 abs_y = -2500
-            elif abs_y < -25000:
-                abs_y = -25000
-            elif abs_y > 25000:
-                abs_y = 25000
-
-            # For some reason, negative is up on the gamepad. This flips that. 
-            abs_y *= -1
+            elif abs_y < -28000:
+                abs_y = -28000
+            elif abs_y > 28000:
+                abs_y = 28000
 
             # Scales joystick input to pwm output (12-bit)
             if abs_y > 0:
-                drivepwmout = map(abs_y, 2500, 25000, 32768, 65535)
+                drivepwm = map(abs_y, 2500, 28000, 32767, 65535)
             else: 
-                drivepwmout = map(abs_y, -25000, -2500, 0, 32768)
+                drivepwm = map(abs_y, -28000, -2500, 0, 32767)
 
-            dpoleft = drivepwmout
-            dporight = drivepwmout
-            print(f"Outputting to channel 0: {dpoleft}") 
-            print(f"Outputting to channel 1: {dporight}")
-            
-            pwmdriver.channels[0].duty_cycle = int(dpoleft)
-            pwmdriver.channels[1].duty_cycle = int(dporight)
-            
+
+        # Calculate Differential Drive
+        if code == "ABS_RX":
+            abs_x = state
+
+            # Account for dead zones on joystick movement
+            if abs_x > 0 and abs_x < 2500:
+                abs_x = 2500
+            elif abs_x > -2500 and abs_x < 0:
+                abs_x = -2500
+            elif abs_x < -30000:
+                abs_x = -30000
+            elif abs_x > 30000:
+                abs_x = 30000
+
+            # Scales relative speed modifier based on steer
+            if abs_x > 0:
+                lmod = 1
+                rmod = map(abs_x, 2500, 30000, 1, 0.3)
+            else:
+                rmod = 1
+                lmod = map(abs_x, -30000, -2500, 0.3, 1)
+            print(f"Absolute xin: {abs_x}")
+            print(f"Rmod: {rmod}")
+            print(f"Lmod: {lmod}")
+        
+        # Actually move the robot
+        if code == "ABS_Y" or code == "ABS_RX":
+            rpw = int(drivepwm*rmod)
+            lpw = int(drivepwm*lmod)
+
+            print(f"Outputting to channel 0: {rpw}") 
+            print(f"Outputting to channel 1: {lpw}")
+            '''
+            pwmdriver.channels[0].duty_cycle = rpw
+            pwmdriver.channels[1].duty_cycle = lpw
+            '''
 # Activate threading
 q = queue.Queue()
 
