@@ -7,6 +7,7 @@ import time
 from controller import Controller
 import threading
 import queue
+import numpy
 isrunning = {'running': True}
 
 
@@ -58,16 +59,18 @@ print("Beginning threading...")
 # Input thread is to constantly read controller input
 def getinputs(q):
     print("Successfully began input thread.")
+    notsyncinp = False
     while True:
-
+        
         # Closes input thread
         if isrunning['running'] == False:
             print("Closing input thread.")
             break
 
         # Process inputs from gamepad
-        code, state = gamepad.readinputs()
-        
+        while not notsyncinp:
+            code, state, notsyncinp = gamepad.readinputs()
+        notsyncinp = False
         q.put((code, state))
 
 # Process thread is to constantly act on read controller input
@@ -76,6 +79,11 @@ def processinputs(q):
     drivepwm = 32767
     rmod = 1
     lmod = 1
+    lowdead = 1000
+    highdead = 31000
+    pwmin = 16384
+    pwmax = 49152
+    highspeed = True
     while True:
         
         # Closes process thread if stop is detected
@@ -88,26 +96,39 @@ def processinputs(q):
         if code == "BTN_SELECT" and state == 1:
             print("Exiting activity loop.")
             isrunning['running'] = False
+        
+        # High speed vs low speed mode
+        if code == "BTN_NORTH" and state == 1:
+            if highspeed:
+                highspeed = False
+                pwmin = 16384
+                pwmax = 49152
+                print("Entering low speed mode")
+            elif not highspeed:
+                highspeed = True
+                pwmin = 0
+                pwmax = 65535
+                print("Entering high speed mode")
 
         # Process fwd/back movement
         if code == "ABS_Y":
             abs_y = state
             
             # Account for dead zones on joystick movement
-            if abs_y > 0 and abs_y < 2500:
-                abs_y = 2500
-            elif abs_y > -2500 and abs_y < 0:
-                abs_y = -2500
-            elif abs_y < -28000:
-                abs_y = -28000
-            elif abs_y > 28000:
-                abs_y = 28000
+            if abs_y > 0 and abs_y < lowdead:
+                abs_y = lowdead
+            elif abs_y > -lowdead and abs_y < 0:
+                abs_y = -lowdead
+            elif abs_y < -highdead:
+                abs_y = -highdead
+            elif abs_y > highdead:
+                abs_y = highdead
 
             # Scales joystick input to pwm output (12-bit)
             if abs_y > 0:
-                drivepwm = map(abs_y, 2500, 28000, 32767, 65535)
+                drivepwm = map(abs_y, lowdead, highdead, 32767, pwmax)
             else: 
-                drivepwm = map(abs_y, -28000, -2500, 0, 32767)
+                drivepwm = map(abs_y, -highdead, -lowdead, pwmin, 32767)
 
 
         # Calculate Differential Drive
@@ -115,22 +136,22 @@ def processinputs(q):
             abs_x = state
 
             # Account for dead zones on joystick movement
-            if abs_x > 0 and abs_x < 2500:
-                abs_x = 2500
-            elif abs_x > -2500 and abs_x < 0:
-                abs_x = -2500
-            elif abs_x < -30000:
-                abs_x = -30000
-            elif abs_x > 30000:
-                abs_x = 30000
+            if abs_x > 0 and abs_x < lowdead:
+                abs_x = lowdead
+            elif abs_x > -lowdead and abs_x < 0:
+                abs_x = -lowdead
+            elif abs_x < -highdead:
+                abs_x = -highdead
+            elif abs_x > highdead:
+                abs_x = highdead
 
             # Scales relative speed modifier based on steer
             if abs_x > 0:
                 lmod = 1
-                rmod = map(abs_x, 2500, 30000, 1, 0.3)
+                rmod = map(abs_x, lowdead, highdead, 1, 0.3)
             else:
                 rmod = 1
-                lmod = map(abs_x, -30000, -2500, 0.3, 1)
+                lmod = map(abs_x, -highdead, -lowdead, 0.3, 1)
             print(f"Absolute xin: {abs_x}")
             print(f"Rmod: {rmod}")
             print(f"Lmod: {lmod}")
