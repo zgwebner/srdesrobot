@@ -8,6 +8,8 @@ from controller import Controller
 import threading
 import queue
 import numpy
+import RPi.GPIO as GPIO
+
 isrunning = {'running': True}
 
 
@@ -36,14 +38,16 @@ print("\nWhat did one snowman say to the other snowman? Smells like carrots.\n")
 # Create Devices
 print("Creating Devices...")
 
-'''
+
 i2c = board.I2C()
 pwmdriver = PCA9685(i2c)
 pwmdriver.frequency = 60
 
 pwmdriver.channels[0].duty_cycle = 32768 
 pwmdriver.channels[1].duty_cycle = 32768
-'''         
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(4, GPIO.OUT)
 
 gamepad = Controller()
 print("Devices are good to go.")
@@ -83,7 +87,8 @@ def processinputs(q):
     highdead = 31000
     pwmin = 16384
     pwmax = 49152
-    highspeed = True
+    highspeed = False
+    actuator = False 
     while True:
         
         # Closes process thread if stop is detected
@@ -109,6 +114,18 @@ def processinputs(q):
                 pwmin = 0
                 pwmax = 65535
                 print("Entering high speed mode")
+
+        # Actuator Open or Close
+        if code == "BTN_SOUTH" and state == 1:
+            if actuator: 
+                actuator = False
+                print("Closing Actuator")
+                GPIO.output(4, False)
+            elif not actuator:
+                actuator = True
+                print("Opening Actuator")
+                GPIO.output(4, True)
+
 
         # Process fwd/back movement
         if code == "ABS_Y":
@@ -148,10 +165,10 @@ def processinputs(q):
             # Scales relative speed modifier based on steer
             if abs_x > 0:
                 lmod = 1
-                rmod = map(abs_x, lowdead, highdead, 1, 0.3)
+                rmod = map(abs_x, lowdead, highdead, 1, 0.5)
             else:
                 rmod = 1
-                lmod = map(abs_x, -highdead, -lowdead, 0.3, 1)
+                lmod = map(abs_x, -highdead, -lowdead, 0.5, 1)
             print(f"Absolute xin: {abs_x}")
             print(f"Rmod: {rmod}")
             print(f"Lmod: {lmod}")
@@ -163,10 +180,10 @@ def processinputs(q):
 
             print(f"Outputting to channel 0: {rpw}") 
             print(f"Outputting to channel 1: {lpw}")
-            '''
+            
             pwmdriver.channels[0].duty_cycle = rpw
             pwmdriver.channels[1].duty_cycle = lpw
-            '''
+            
 # Activate threading
 q = queue.Queue()
 
