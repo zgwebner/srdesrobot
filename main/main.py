@@ -87,7 +87,6 @@ def map(x, inmin, inmax, outmin, outmax):
 print("Beginning threading...")
 
 # Set up threading for simultaneous controller reading and robot function
-
 # Input thread is to constantly read controller input
 def getinputs(q):
     print("Successfully began input thread.")
@@ -119,6 +118,7 @@ def processinputs(q):
     actuator = False
     launchmotor = False
     collectmotor = False
+    launchgate = False
     while True:
         
         # Closes process thread if stop is detected
@@ -192,8 +192,16 @@ def processinputs(q):
             print("Launch color set to RED")
         # Open end gate for launching
         if code == "ABS_HAT0Y" and state == -1:
-            print("Launch Gate Opened") 
-            pwmdriver.channels[gate3pin].duty_cycle = 65535
+            if launchgate:
+                launchgate = False
+                print("Launch Gate Closed")
+                if globalvars['pwmworking']:
+                    pwmdriver.channels[gate3pin].duty_cycle = 0
+            elif not launchgate:
+                launchgate = True
+                print("Launch Gate Opened") 
+                if globalvars['pwmworking']:
+                    pwmdriver.channels[gate3pin].duty_cycle = 65535
 
         # Process fwd/back movement
         if code == "ABS_Y":
@@ -214,7 +222,6 @@ def processinputs(q):
                 drivepwm = map(abs_y, lowdead, highdead, 32767, pwmax)
             else: 
                 drivepwm = map(abs_y, -highdead, -lowdead, pwmin, 32767)
-
 
         # Calculate Differential Drive
         if code == "ABS_RX":
@@ -242,15 +249,16 @@ def processinputs(q):
             print(f"Lmod: {lmod}")
         
         # Actually move the robot
-        if (code == "ABS_Y" or code == "ABS_RX") and (globalvars['pwmworking'] == True):
+        if (code == "ABS_Y" or code == "ABS_RX"):
             rpw = int(drivepwm*rmod)
             lpw = int(drivepwm*lmod)
 
-            print(f"Outputting to channel 0: {rpw}") 
-            print(f"Outputting to channel 1: {lpw}")
+            print(f"Right Wheel pwm: {rpw}") 
+            print(f"Left Wheel pwm: {lpw}")
             
-            pwmdriver.channels[motorrpin].duty_cycle = rpw
-            pwmdriver.channels[motorlpin].duty_cycle = lpw
+            if globalvars['pwmworking']:
+                pwmdriver.channels[motorrpin].duty_cycle = rpw
+                pwmdriver.channels[motorlpin].duty_cycle = lpw
 
 
 # Activate threading
@@ -263,44 +271,80 @@ inpthread.start()
 processthread.start()
 print("Threading is good to go.")
 
-# Main Activity Loop
+# Main Loop (Sorting)
 print("Entering main loop...")
 count = 0
 thiscol = 'R'
+lastcol = 'R'
 calibrated = False
-
+lastlaunch = globalvars['launchcolor']
 while globalvars['running'] == True:
 
-
-    # Color sort
+    # Color sort process
     if globalvars['sensorworking']:
         color = sensor.color
         rgb = sensor.color_rgb_bytes
         count += 1
+
+        # Sensor calibration
         if count == 5:
             initcol = rgb 
             calibrated = True
             print("Color Sensor Calibrated.")
         
+        # Detect color of ball in waiting chamber 
+        # TODO: Add pinwheel functionality
         if calibrated:
             if rgb[0] > initcol[0] + 5 and rgb[1] > initcol[1] + 5:
                 print(f"Detected YELLOW with rgb values {rgb}.")
+                thiscol = 'Y'
             elif rgb[0] > initcol[0] + 10:
                 print(f"Detected RED with rgb values {rgb}.")
+                thiscol = 'R'
             elif rgb[2] > initcol[2] + 5:
                 print(f"Detected BLUE with rgb values {rgb}.")
+                thiscol = 'B'
             else: 
                 print(f"Detected NONE with rgb values {rgb}.")
                
-
-            match globalvars['launchcolor']:
-                case 'R':
-                    pass
-                case 'Y':
-                    pass
-                case 'B':
-                    pass
-
+            # Decide where the ball goes based on launch color and detected color
+            if (lastcol != thiscol) or lastlaunch != globalvars['launchcolor']:
+                match globalvars['launchcolor']:
+                    case 'R':
+                        if thiscol == 'B':
+                            print("Opening Gate 1, Closing Gate 2")
+                            if globalvars['pwmworking']:
+                                pwmdriver.channels[gate1pin].duty_cycle = 65535                           
+                                pwmdriver.channels[gate2pin].duty_cycle = 0
+                        elif thiscol == 'Y':
+                            print("Opening Gate 2, Closing Gate 1")
+                            if globalvars['pwmworking']:
+                                pwmdriver.channels[gate1pin].duty_cycle = 0
+                                pwmdriver.channels[gate2pin].duty_cycle = 65535
+                    case 'Y': 
+                        if thiscol == 'B':
+                            print("Opening Gate 1, Closing Gate 2")
+                            if globalvars['pwmworking']:
+                                pwmdriver.channels[gate1pin].duty_cycle = 65535                           
+                                pwmdriver.channels[gate2pin].duty_cycle = 0
+                        elif thiscol == 'R':
+                            print("Opening Gate 2, Closing Gate 1")
+                            if globalvars['pwmworking']:
+                                pwmdriver.channels[gate1pin].duty_cycle = 0
+                                pwmdriver.channels[gate2pin].duty_cycle = 65535
+                    case 'B': 
+                        if thiscol == 'R':
+                            print("Opening Gate 1, Closing Gate 2")
+                            if globalvars['pwmworking']:
+                                pwmdriver.channels[gate1pin].duty_cycle = 65535                           
+                                pwmdriver.channels[gate2pin].duty_cycle = 0
+                        elif thiscol == 'Y':
+                            print("Opening Gate 2, Closing Gate 1")
+                            if globalvars['pwmworking']:
+                                pwmdriver.channels[gate1pin].duty_cycle = 0
+                                pwmdriver.channels[gate2pin].duty_cycle = 65535
+            lastcol = thiscol
+            lastlaunch = globalvars['launchcolor']
         else:
             print("Calibrating sensor...")
     time.sleep(0.5)
